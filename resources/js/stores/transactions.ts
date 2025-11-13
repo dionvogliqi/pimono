@@ -45,6 +45,9 @@ export const useTransactionsStore = defineStore('transactions', {
       try {
         const res = await fetch(`/api/transactions?page=${page}&per_page=${this.perPage}`, {
           credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          },
         })
         if (!res.ok) throw new Error(await res.text())
         const data = await res.json()
@@ -70,20 +73,28 @@ export const useTransactionsStore = defineStore('transactions', {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'X-CSRF-TOKEN': csrf,
           },
           body: JSON.stringify({ receiver_id, amount }),
         })
-        if (res.status === 403) {
-          const payload = await res.json().catch(() => null)
-          throw new Error(payload?.message || 'Insufficient funds.')
+
+        if (!res.ok) {
+          let message = 'Transfer failed'
+          try {
+            const payload = await res.json()
+            message = payload?.message || message
+          } catch {
+            const text = await res.text()
+            if (text) {
+              message = text
+            }
+          }
+          throw new Error(message)
         }
-        if (!res.ok) throw new Error(await res.text())
 
         const data = await res.json()
-        // Update balance optimistically for sender (canonical will arrive via event too)
         this.balance = data.balance
-        // Prepend transaction for immediate feedback
         this.transactions = [data.transaction, ...this.transactions]
       } catch (e: any) {
         this.error = e?.message || 'Transfer failed'

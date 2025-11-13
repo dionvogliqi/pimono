@@ -12,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 class TransferService
 {
     public const COMMISSION_RATE = '0.015'; // 1.5%
+
     public const SCALE = 4; // money scale
 
     public function __construct()
@@ -22,9 +23,7 @@ class TransferService
     /**
      * Perform an atomic transfer between two users.
      *
-     * @param  User    $sender
-     * @param  int     $receiverId
-     * @param  string  $amount Decimal string, up to 4 fractional digits
+     * @param  string  $amount  Decimal string, up to 4 fractional digits
      * @return array{transaction: Transaction, balances: array{sender: string, receiver: string}}
      *
      * @throws ValidationException
@@ -110,10 +109,8 @@ class TransferService
 
                     $tx->save();
 
-                    // Broadcast after commit
-                    DB::afterCommit(function () use ($tx, $newSenderBalance, $newReceiverBalance): void {
-                        event(new TransferCompleted($tx, $newSenderBalance, $newReceiverBalance));
-                    });
+                    // Broadcast event (synchronous). In production, use queue for ShouldBroadcast.
+                    event(new TransferCompleted($tx, $newSenderBalance, $newReceiverBalance));
 
                     return [
                         'transaction' => $tx,
@@ -131,6 +128,7 @@ class TransferService
                     $attempt++;
                     // exponential backoff 5ms, 10ms, 20ms, 40ms...
                     usleep((int) (5000 * (2 ** ($attempt - 1))));
+
                     continue;
                 }
 
@@ -168,6 +166,7 @@ class TransferService
         }
         $parts = explode('.', $value, 2);
         $frac = substr($parts[1], 0, self::SCALE);
+
         return $parts[0].'.'.str_pad($frac, self::SCALE, '0');
     }
 
@@ -177,7 +176,7 @@ class TransferService
         $sign = str_starts_with($value, '-') ? -1 : 1;
         $abs = ltrim($value, '+-');
         if (! str_contains($abs, '.')) {
-            $abs .= '.' . str_repeat('0', $scale + 1);
+            $abs .= '.'.str_repeat('0', $scale + 1);
         }
         [$int, $frac] = explode('.', $abs, 2);
         $frac = str_pad($frac, $scale + 1, '0');
@@ -205,6 +204,7 @@ class TransferService
     protected function ltEq(string $a, string $b): bool
     {
         $cmp = bccomp($a, $b, self::SCALE);
+
         return $cmp === -1 || $cmp === 0;
     }
 }
