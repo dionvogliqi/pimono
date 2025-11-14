@@ -22,6 +22,30 @@ export interface Paginated<T> {
   }
 }
 
+type SharedPageProps = {
+  csrfToken?: string
+  auth?: {
+    user?: {
+      id: number
+    }
+  }
+}
+
+function resolveCsrfToken(): string {
+  const page = usePage<SharedPageProps>()
+  const token = page.props.csrfToken
+
+  if (typeof token === 'string' && token.length > 0) {
+    return token
+  }
+
+  if (typeof document === 'undefined') {
+    return ''
+  }
+
+  return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? ''
+}
+
 export const useTransactionsStore = defineStore('transactions', {
   state: () => ({
     balance: '0.0000' as string,
@@ -67,7 +91,7 @@ export const useTransactionsStore = defineStore('transactions', {
       this.sending = true
       this.error = ''
       try {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        const csrf = resolveCsrfToken()
         const res = await fetch('/api/transactions', {
           method: 'POST',
           credentials: 'include',
@@ -105,8 +129,8 @@ export const useTransactionsStore = defineStore('transactions', {
     },
     ensureSubscribed() {
       if (this.subscribed) return
-      const page = usePage()
-      const authUser = (page.props as any).auth?.user
+      const page = usePage<SharedPageProps>()
+      const authUser = page.props.auth?.user
       if (!authUser?.id) return
 
       echo.private(`private-user.${authUser.id}`).listen('.TransferCompleted', (payload: any) => {
