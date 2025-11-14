@@ -66,6 +66,11 @@ const mainNavItems: NavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
     },
+    {
+        title: 'Transfers',
+        href: '/transfers',
+        icon: LayoutGrid,
+    },
 ];
 
 const rightNavItems: NavItem[] = [
